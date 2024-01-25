@@ -16,7 +16,7 @@ public:
 		: msg(msg) {}
 	virtual ~CLIExcpetion() noexcept = default;
 
-	virtual const char* what() noexcept { return msg.data(); }
+	virtual const char* what() const noexcept { return msg.data(); }
 
 private:
 	std::string msg;
