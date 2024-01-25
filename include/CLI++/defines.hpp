@@ -9,4 +9,7 @@
 
 #define SET_CLIPP_ALIAS(alias) namespace alias = __namespace_CLIPP
 
+#define PROMPT_IGNORE_START "\001"
+#define PROMPT_IGNORE_END   "\002"
+
 #endif //! __CLIPP_DEFINES_HEADER__
