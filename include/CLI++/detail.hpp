@@ -9,6 +9,8 @@
 
 __CLIPP_begin
 
+namespace detail {
+
 template <typename T>
 struct styled_arg {
 	styled_arg(const fmt::detail::styled_arg<T>& styled)
@@ -21,25 +23,21 @@ struct styled_arg {
 	fmt::text_style style;
 };
 
-template <typename T>
-FMT_CONSTEXPR auto styled(const T& value, fmt::text_style ts)
-    -> __CLIPP::styled_arg<fmt::remove_cvref_t<T>>
-{
-	return __CLIPP::styled_arg<fmt::remove_cvref_t<T>>{value, ts};
+enum class String2ArgvErr {
+	OK = 0,
+	UNBALANCED_QUOTE
+};
+
+std::vector<std::string> string_to_argv(const std::string& cmd, String2ArgvErr* err = nullptr);
+
 }
-
-#define PROMPT_IGNORE_START "\001"
-#define PROMPT_IGNORE_END   "\002"
-
-std::vector<std::string> str_to_argv(const std::string& cmd);
-
 __CLIPP_end
 
 template <typename T, typename Char>
-struct fmt::formatter<__CLIPP::styled_arg<T>, Char> : fmt::formatter<T, Char>
+struct fmt::formatter<__CLIPP::detail::styled_arg<T>, Char> : fmt::formatter<T, Char>
 {
 	template <typename FormatContext>
-	auto format(const __CLIPP::styled_arg<T>& arg, FormatContext& ctx) const
+	auto format(const __CLIPP::detail::styled_arg<T>& arg, FormatContext& ctx) const
 		-> decltype(ctx.out())
 	{
 		const auto& ts = arg.style;
@@ -49,7 +47,7 @@ struct fmt::formatter<__CLIPP::styled_arg<T>, Char> : fmt::formatter<T, Char>
 		uint8_t has_style = (uint8_t)ts.has_emphasis()
 			| (uint8_t)ts.has_foreground() << 1
 			| (uint8_t)ts.has_background() << 2;
-			
+
 		auto rl_prompt_ignore_start = fmt::string_view(PROMPT_IGNORE_START);
 		auto rl_prompt_ignore_end   = fmt::string_view(PROMPT_IGNORE_END);
 
