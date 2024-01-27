@@ -1,6 +1,9 @@
 #include "../include/CLI++/detail.hpp"
+#include <cstring>
 
+#ifdef __REGEX_SPLIT
 #include <regex>
+#endif
 
 __CLIPP_begin namespace detail {
 
@@ -8,16 +11,17 @@ __CLIPP_begin namespace detail {
 /**
  * this section of code was written by:
  * @author Bruce@stackoverflow.com/users/307917
- * @post https://stackoverflow.com/a/2568792
+ * @post   https://stackoverflow.com/a/2568792
  * modifications were made to fit C++ code style and the need of this library.
 **/
 
 #ifndef STR_TERMINATE
 #define STR_TERMINATE '\0'
 #endif
-char handle_escape(char** src_p)
+template<typename CharT>
+CharT handle_escape(CharT** src_p)
 {
-	char ch = *((*src_p)++);
+	CharT ch = *((*src_p)++);
 	// Escape character is always eaten. The next character is sometimes treated specially.
 	switch (ch) {
 	case 'a': ch = '\a'; break;
@@ -30,10 +34,11 @@ char handle_escape(char** src_p)
 	}
 	return ch;
 }
-String2ArgvErr copy_raw_string(char** dest_p, char** src_p)
+template<typename CharT>
+String2ArgvErr copy_raw_string(CharT** dest_p, CharT** src_p)
 {
 	while(true) {
-		char ch = *((*src_p)++);
+		CharT ch = *((*src_p)++);
 
 		switch (ch) {
 		case STR_TERMINATE: return String2ArgvErr::UNBALANCED_QUOTE;
@@ -64,10 +69,11 @@ String2ArgvErr copy_raw_string(char** dest_p, char** src_p)
 		}
 	}
 }
-String2ArgvErr copy_cooked_string(char** dest_p, char** src_p)
+template<typename CharT>
+String2ArgvErr copy_cooked_string(CharT** dest_p, CharT** src_p)
 {
 	while(true) {
-		char ch = *((*src_p)++);
+		CharT ch = *((*src_p)++);
 		switch (ch) {
 		case STR_TERMINATE:
 			return String2ArgvErr::UNBALANCED_QUOTE;
@@ -87,24 +93,26 @@ String2ArgvErr copy_cooked_string(char** dest_p, char** src_p)
 	}
 }
 
-std::vector<std::string> string_to_argv(const std::string& str, String2ArgvErr* err_p)
+
+std::vector<String> string_to_argv(const String& str, String2ArgvErr* err_p)
 {
 	String2ArgvErr err = String2ArgvErr::OK;
+	using Char = String::value_type;
 
-	std::vector<std::string> ret;
+	std::vector<String> ret;
 	ret.reserve(10);
 
-	std::unique_ptr<char, void (*)(void*)> pstr(strdup(str.data()), std::free);
-	char* scan = pstr.get();
+	std::unique_ptr<Char, void (*)(void*)> pstr(strdup(str.data()), std::free);
+	Char* scan = pstr.get();
 
-	while (isspace((unsigned char)*scan)) scan++;
-	char* dest  = scan;
-	char* token = scan;
+	while (std::isspace((unsigned char)*scan)) scan++;
+	Char* dest  = scan;
+	Char* token = scan;
 
 	bool done = false;
 	while(!done && (err == String2ArgvErr::OK))
 	{
-		while (isspace((unsigned char)*scan)) scan++;
+		while (std::isspace((unsigned char)*scan)) scan++;
 		if (*scan == STR_TERMINATE)
 			break;
 
@@ -113,7 +121,7 @@ std::vector<std::string> string_to_argv(const std::string& str, String2ArgvErr* 
 		bool token_done = false;
 		while(!token_done && (err == String2ArgvErr::OK))
 		{
-			char ch = *(scan++);
+			Char ch = *(scan++);
 			switch (ch)
 			{
 			case STR_TERMINATE:
@@ -151,7 +159,7 @@ std::vector<std::string> string_to_argv(const std::string& str, String2ArgvErr* 
 			}
 		}
 		*dest = STR_TERMINATE;
-		ret.push_back(std::string(token));
+		ret.push_back(String(token));
 	}
 
 	if (err_p != nullptr)
@@ -164,9 +172,9 @@ std::vector<std::string> string_to_argv(const std::string& str, String2ArgvErr* 
 
 ///////// old one uses regular expression, can't deal with escaped characters
 #ifdef __REGEX_SPLIT
-std::vector<std::string> string_to_argv(const std::string& cmd)
+std::vector<String> string_to_argv(const String& cmd)
 {
-	std::vector<std::string> argv;
+	std::vector<String> argv;
 	static const std::regex reg(
 		R"(([^\s'"]([^\s'"]*(['"])((?!\3)[^]*?)\3)+[^\s'"]*)|[^\s'"]+|(['"])((?!\5)[^]*?)\5)",
 		std::regex_constants::icase | std::regex_constants::ECMAScript

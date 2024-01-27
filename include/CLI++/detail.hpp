@@ -6,10 +6,9 @@
 #include <fmt/color.h>
 #include <cstdint>
 #include <vector>
+#include <algorithm>
 
-__CLIPP_begin
-
-namespace detail {
+__CLIPP_begin namespace detail {
 
 template <typename T>
 struct styled_arg {
@@ -28,10 +27,48 @@ enum class String2ArgvErr {
 	UNBALANCED_QUOTE
 };
 
-std::vector<std::string> string_to_argv(const std::string& cmd, String2ArgvErr* err = nullptr);
+std::vector<String> string_to_argv(const String& cmd, String2ArgvErr* err = nullptr);
 
+template<typename CharT>
+bool is_empty_string(const std::basic_string<CharT>& str)
+{
+	return str.empty() || std::ranges::all_of(str, isspace);
 }
-__CLIPP_end
+
+/**
+ * @brief Calculate length of given C-Style string
+ * @tparam CharT type of a character
+ * @param str C-Style string pointer
+ * @return length of the given string.
+**/
+template<typename CharT>
+std::size_t strlen(const CharT* str)
+{
+	std::size_t len = 0;
+	while (*(str++) != 0)
+		len++;
+	return len;
+}
+
+/**
+ * @brief Duplicate a C-Style string from another.
+ * @note  This function will allocate memory on heap through "malloc", remember to free it.
+ * @tparam CharT type of a character
+ * @param str C-Style string pointer
+ * @return Duplicated string, if no memory available (allocation failed), nullptr is returned.
+**/
+template<typename CharT>
+CharT* strdup(const CharT* str)
+{
+	std::size_t size = sizeof(CharT) * (strlen(str) + 1);
+	CharT* ret = (CharT*)std::malloc(size);
+	if (ret != nullptr)
+		std::memcpy(ret, str, size);
+	return ret;
+}
+
+
+} __CLIPP_end
 
 template <typename T, typename Char>
 struct fmt::formatter<__CLIPP::detail::styled_arg<T>, Char> : fmt::formatter<T, Char>
