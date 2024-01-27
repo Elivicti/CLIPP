@@ -10,7 +10,7 @@ __CLIPP_begin
 class CLIExcpetion : public std::exception
 {
 public:
-	CLIExcpetion(const std::string& msg) noexcept
+	CLIExcpetion(const String& msg) noexcept
 		: msg(msg) {}
 	CLIExcpetion(const char* msg) noexcept
 		: msg(msg) {}
@@ -19,7 +19,7 @@ public:
 	virtual const char* what() const noexcept { return msg.data(); }
 
 private:
-	std::string msg;
+	String msg;
 };
 
 
