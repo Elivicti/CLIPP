@@ -22,8 +22,9 @@ __CLIPP_begin
 // using String = std::wstring;
 // #endif
 
-using String = std::string;
-using CharType = String::value_type;
+using String     = std::string;
+using CharType   = String::value_type;
+using StringView = std::basic_string_view<CharType>;
 
 __CLIPP_end
 
