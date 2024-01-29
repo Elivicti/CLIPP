@@ -27,7 +27,7 @@ enum class String2ArgvErr {
 	UNBALANCED_QUOTE
 };
 
-std::vector<String> string_to_argv(const String& cmd, String2ArgvErr* err = nullptr);
+std::vector<String> split_token(const String& cmd, String2ArgvErr* err = nullptr);
 
 template<typename CharT>
 bool is_empty_string(const std::basic_string<CharT>& str)
