@@ -109,8 +109,8 @@ std::vector<String> split_token(const String& str, String2ArgvErr* err_p)
 	Char* dest  = scan;
 	Char* token = scan;
 
-	constexpr Char round_bracket_beg[2] = "(";
-	constexpr Char round_bracket_end[2] = ")";
+	// constexpr Char round_bracket_beg[2] = { '(', '\0' };
+	// constexpr Char round_bracket_end[2] = { ')', '\0' };
 
 	bool done = false;
 	while(!done && (err == String2ArgvErr::OK))
@@ -122,7 +122,7 @@ std::vector<String> split_token(const String& str, String2ArgvErr* err_p)
 		token = dest = scan;
 
 		bool token_done = false;
-		int round_bracket = 0;
+		// int round_bracket = 0;
 		while(!token_done && (err == String2ArgvErr::OK))
 		{
 			Char ch = *(scan++);
@@ -150,10 +150,10 @@ std::vector<String> split_token(const String& str, String2ArgvErr* err_p)
 				break;
 
 			case ')':
-				round_bracket++;
-				continue;
+				// round_bracket++;
+				// continue;
 			case '(':
-				ret.emplace_back(round_bracket_beg);
+				// ret.emplace_back(round_bracket_beg);
 				// fallthrough
 			case ' ':
 			case '\t':
@@ -171,8 +171,8 @@ std::vector<String> split_token(const String& str, String2ArgvErr* err_p)
 		*dest = STR_TERMINATE;
 		if (*token != STR_TERMINATE)
 			ret.emplace_back(token);
-		while (round_bracket--)
-			ret.emplace_back(round_bracket_end);
+		// while (round_bracket--)
+		// 	ret.emplace_back(round_bracket_end);
 	}
 
 	if (err_p != nullptr)
