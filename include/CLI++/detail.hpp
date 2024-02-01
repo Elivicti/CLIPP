@@ -27,8 +27,26 @@ enum class String2ArgvErr {
 	UNBALANCED_QUOTE
 };
 
+template<CharType... Chars>
+struct StringConstant
+{
+	constexpr static CharType value[sizeof...(Chars) + 1] = { Chars..., '\0' };
+	constexpr static String toString()
+	{
+		return String(value, sizeof...(Chars));
+	}
+};
+template<CharType ... Chars>
+inline constexpr auto StringConstant_v = StringConstant<Chars...>::value;
+
+/**
+ * @brief Split string into bash-like tokens.
+ * @note  Special operators like `|`, `||` and `&&` won't be recognize if no white spaces are around them,
+ *        e.g. "echo 1||echo 2" will be split into {"echo", "1||echo", "2"}
+**/
 std::vector<String> split_token(const String& cmd, String2ArgvErr* err = nullptr);
 
+/** @brief Check if a string is empty, or its characters are all white spaces (i.e. character that `std::isspace` returns true). */
 template<typename CharT>
 bool is_empty_string(const std::basic_string<CharT>& str)
 {
@@ -52,23 +70,40 @@ std::size_t strlen(const CharT* str)
 
 /**
  * @brief Duplicate a C-Style string from another.
- * @note  This function will allocate memory on heap through "malloc", remember to free it.
+ * @note  This function will allocate memory on heap through `malloc`, remember to free it.
  * @tparam CharT type of a character
  * @param str C-Style string pointer
- * @return Duplicated string, if no memory available (allocation failed), nullptr is returned.
+ * @return Duplicated string, if no memory available (allocation failed), `nullptr` is returned.
 **/
 template<typename CharT>
 CharT* strdup(const CharT* str)
 {
 	std::size_t size = sizeof(CharT) * (strlen(str) + 1);
 	CharT* ret = (CharT*)std::malloc(size);
+#ifdef _MSC_VER	// "nice" work, microsoft
+	if (ret != nullptr)
+		memcpy_s(ret, size, str, size);
+#else
 	if (ret != nullptr)
 		std::memcpy(ret, str, size);
+#endif
 	return ret;
 }
 
 
-} __CLIPP_end
+}	// namespace detail
+
+template<typename Func, typename ...Args>
+struct ScopeGuard
+{
+	Func _f;
+	std::tuple<Args...> _args;
+	ScopeGuard(Func&& fn, Args&& ...args)
+		: _f(fn), _args(std::forward<Args>(args)...) {}
+	~ScopeGuard() noexcept { std::apply(_f, _args); }
+};
+
+__CLIPP_end
 
 template <typename T, typename Char>
 struct fmt::formatter<__CLIPP::detail::styled_arg<T>, Char> : fmt::formatter<T, Char>
