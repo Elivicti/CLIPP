@@ -1,12 +1,15 @@
 #include "../include/CLI++/CLI++.hpp"
-#include "../include/CLI++/detail.hpp"
-#include <sstream>
+#include <iostream>
 #include <ranges>
 
 #include <readline/readline.h>
 #include <readline/history.h>
 
 __CLIPP_begin
+/////////////////   Constant   /////////////////
+static auto CMDAND  = detail::StringConstant_v<'&', '&'>;
+static auto CMDOR   = detail::StringConstant_v<'|', '|'>;
+static auto CMDPIPE = detail::StringConstant_v<'|'>;
 
 ///////////////// Readline API /////////////////
 char* command_generator(const char* text, int state)
@@ -45,12 +48,12 @@ char** command_completion(const char* text, int start, int end)
 
 
 /////////////// Special Excepion ///////////////
-class CLIExcepionExit : public CLIExcpetion
+class CLIExceptionExit : public CLIException
 {
 public:
-	CLIExcepionExit(int _code = 0) noexcept
-		: CLIExcpetion("This CLIExcpetion is called to exit CLI with return code."), _code(_code) {}
-	virtual ~CLIExcepionExit() noexcept = default;
+	CLIExceptionExit(int _code = 0) noexcept
+		: CLIException("This CLIException is called to exit CLI with return code."), _code(_code) {}
+	virtual ~CLIExceptionExit() noexcept = default;
 
 	int code() const { return _code; }
 private:
@@ -94,13 +97,7 @@ char* CLICommand::match(const char* text, int len) const
 }
 String CLICommand::usage() const
 {
-	// bool has_subcmd = subcmds.size() > 0;
-	// bool has_option = options.size() > 0;
-
-	// if (!has_subcmd && !has_option)
-	// 	return "";
-
-	std::ostringstream ss;
+	std::basic_ostringstream<CharType> ss;
 	if (subcmds.size() > 0)
 	{
 		ss << "sub commands:\n";
@@ -181,37 +178,123 @@ void CLICommand::removeSubCommand(const String& subcmd)
 		subcmds.erase(it);
 }
 
+//////////////////  Pipeline  //////////////////
+template<typename CharT>
+static std::basic_istream<CharT>& get_stdin_stream();
+template<> std::basic_istream<char>&    get_stdin_stream()
+{ return std::cin; }
+template<> std::basic_istream<wchar_t>& get_stdin_stream()
+{ return std::wcin; }
+
+Pipeline::Pipeline(_std_iostream* buffer1, _std_iostream* buffer2)
+	: buffer1{ buffer1 == nullptr ? new _std_stringstream : buffer1, buffer1 != nullptr }
+	, buffer2{ buffer2 == nullptr ? new _std_stringstream : buffer2, buffer2 != nullptr }
+	, working{ nullptr, &get_stdin_stream<CharType>() }
+	, is_opened(false) {}
+
+Pipeline::~Pipeline()
+{
+	if (!buffer1.is_external)
+		delete buffer1.stream;
+	if (!buffer2.is_external)
+		delete buffer2.stream;
+}
+
+void Pipeline::clearAll()
+{
+	buffer1.clear();
+	buffer2.clear();
+}
+
+Pipeline::_std_ostream& Pipeline::write(const String& str)
+{
+	if (working.out == nullptr)
+		throw CLIException("trying to write to a closed pipe");
+	return (*working.out) << str;
+}
+
+void Pipeline::open()
+{
+	clearAll();
+	working.out = buffer2.stream;
+	working.in = &get_stdin_stream<CharType>();
+	is_opened = true;
+}
+void Pipeline::close()
+{
+	working.out = nullptr;
+	// note that we don't set working.in to default, because at this point,
+	// the pipe is only half closed: working.out reaches the end (means it needs to be stdout now),
+	// but working.in still holds the data from last command output, which may be needed.
+	is_opened = false;
+}
+void Pipeline::swapWorkingInput()
+{
+	if (!this->opened())
+		return;
+
+	if (working.in != buffer1.stream)
+		working.in = buffer1.stream;
+	else
+		working.in = buffer2.stream;
+}
+void Pipeline::swapWorkingOutput()
+{
+	if (!this->opened())
+		return;
+
+	if (working.out != buffer1.stream)
+	{
+		buffer1.clear();
+		working.out = buffer1.stream;
+	}
+	else
+	{
+		buffer2.clear();
+		working.out = buffer2.stream;
+	}
+}
+
 //////////////////    CLI     //////////////////
 CLI* CLI::cli_instance = nullptr;
-
-CLI::CLI(const String& prompt, char completion_key)
-	: in_exec_loop(false), prompt(prompt)
+void CLI::init(char completion_key)
 {
 	if (cli_instance != nullptr)
-		throw CLIExcpetion("CLI can ONLY have one instance.");
+		throw CLIException("CLI can ONLY have one instance.");
 	cli_instance = this;
+
 
 	rl_bind_key(completion_key, rl_complete);
 	rl_attempted_completion_function = command_completion;
 
-	commands.emplace("help", new CLICommand("help", [](CLI* cli, const ArgList& args) {
-		cli->help(args);
+	commands.emplace("help", new CLICommand("help", [](CLI& cli, const ArgList& args) {
+		return cli.help(args);
 	}, "list all available commands or print help for specified command"));
-	commands.emplace("echo", new CLICommand("echo", [](CLI* cli, const ArgList& args) {
-		cli->echo(args);
+	commands.emplace("echo", new CLICommand("echo", [](CLI& cli, const ArgList& args) {
+		return cli.echo(args);
 	}, "just an echo"));
-	commands.emplace("clear", new CLICommand("clear", [](CLI* cli, const ArgList&) {
-		cli->clearScreen();
+	commands.emplace("clear", new CLICommand("clear", [](CLI& cli, const ArgList&) {
+		return cli.clearScreen();
 	}, "clear screen"));
-	commands.emplace("exit", new CLICommand("exit", [](CLI* cli, const ArgList& args) {
-		cli->exitImpl(args);
+	commands.emplace("exit", new CLICommand("exit", [](CLI& cli, const ArgList& args) {
+		cli.exitImpl(args); return -1;
 	}, "exit cli with return code, if not specified, return 0"));
 
 	auto cmd_help = commands.at("help");
 	for (auto& [ cmd_name, cmd ] : commands)
-		cmd_help->addSubCommand(cmd_name, cmd->description());
+		cmd_help->addSubCommand(String(cmd_name), cmd->description());
 	// fmt::print("{}: {}\n{}\n", cmd_help->name(), cmd_help->description(), cmd_help->usage());
 }
+
+CLI::CLI(const String& prompt, char completion_key, TokenSpliterFunction spliter)
+	: in_exec_loop(false), prompt(prompt), last_return_code(0)
+	, token_spliter(spliter)
+{
+	this->init();
+}
+// CLI::CLI(Pipeline::_std_iostream& stream, const String& prompt, char completion_key)
+// 	: in_exec_loop(false), prompt(prompt), last_return_code(0), pipeline(stream)
+// { this->init(); }
 
 CLI::~CLI()
 {
@@ -221,54 +304,57 @@ CLI::~CLI()
 	}
 }
 
-void CLI::exit(int code) const
+int CLI::exit(int code) const
 {
 	if (in_exec_loop)
-		throw CLIExcepionExit(code);
+		throw CLIExceptionExit(code);
+	return code;
 }
 void CLI::exitImpl(const ArgList& args) const
 {
 	int code = 0;
 	if (args.size() > 1)
 	{
-		try { code = std::stoi(args[1]); }
+		try { code = std::stoi(String(args[1])); }
 		catch(const std::exception&)
 		{
-			throw CLIExcpetion("Invalid exit code.");
+			throw CLIException("Invalid exit code.");
 		}
 	}
 	this->exit(code);
 }
-void CLI::echo(const ArgList& args) const
+int CLI::echo(const ArgList& args) const
 {
 	// fmt::print("{}\n", fmt::join(args.begin() + 1, args.end(), " "));
 	size_t count = args.size();
 	for (size_t i = 0; i < count; i++)
-		fmt::print("argv[{}] = {}\n", i, args[i]);
+		print("argv[{}] = {}\n", i, args[i]);
+	return 0;
 }
-void CLI::help(const ArgList& args) const
+int CLI::help(const ArgList& args) const
 {
 	const auto& cmds = this->commands;
 	if (args.size() < 2)
 	{
-		fmt::print("available commands:\n");
-		for (const auto& [ key, _ ] : cmds)
-			fmt::print("{}  ", key);
-		fmt::print("\n");
-		return;
+		print("available commands:\n");
+		auto range = std::views::transform(cmds, [](const auto& pair) { return pair.first; });
+		print("{}\n", fmt::join(range.begin(), range.end(), "  "));
+		return 0;
 	}
 	auto& cmd = args[1];
 	if (!cmds.contains(cmd))
-		throw CLIExcpetion("help: No such command");
-	else
 	{
-		auto pcmd = cmds.at(cmd);
-		fmt::print("{}: {}\n{}", cmd, pcmd->description(), pcmd->usage());
+		printStderr("help: Unkown command \"{}\"\n", cmd);
+		return 1;
 	}
+	auto pcmd = cmds.at(cmd);
+	print("{}: {}\n{}", cmd, pcmd->description(), pcmd->usage());
+	return 0;
 }
-void CLI::clearScreen() const
+int CLI::clearScreen() const
 {
-	fmt::print("\x1b\x5b\x48\x1b\x5b\x32\x4a");
+	print("\x1b\x5b\x48\x1b\x5b\x32\x4a");
+	return 0;
 }
 void CLI::updateHelp(const CLICommand* cmd)
 {
@@ -294,23 +380,117 @@ int CLI::exec()
 
 		add_history(input.data());
 
+		/**
+		 * TODO:
+		 *   [DONE] Pipeline buffer
+		 *   [DONE] parse pipeline operator
+		 *   [DONE] other operators like "&&" and "||"
+		**/
 		try
 		{
-			const auto& argv = detail::string_to_argv(input);
-
-			if (commands.contains(argv[0]))
-				commands.at(argv[0])->operator()(this, argv);
-			else if (!input.empty())
-				fmt::print("{}: No such command\n", argv[0]);
+			TokenList tokens = detail::split_token(input);
+			last_return_code = execute(parse(tokens));
 		}
-		catch(const CLIExcepionExit& exit) { return exit.code(); }
+		catch(const CLIExceptionExit& exit) { return exit.code(); }
 		catch(const std::exception& e)
 		{
-			fmt::print("{}\n", e.what());
+			fmt::print("{} {}\n",
+				fmt::styled("Error:", fmt::fg(fmt::rgb(0xF14C4C)) | fmt::emphasis::bold),
+				e.what());
 		}
 	}
 	in_exec_loop = false;
 	return 0;
+}
+
+std::vector<CLI::PipelineRange> CLI::parse(const CLI::TokenList& tokens)
+{
+	using TokenListConstIter = TokenList::const_iterator;
+	const TokenListConstIter end = tokens.cend();
+	std::vector<PipelineRange> cmds;
+
+	auto is_operator = [](const String& s) {
+		return (s == CMDAND) || (s == CMDOR) || (s == CMDPIPE);
+	};
+
+	for (TokenListConstIter start = tokens.cbegin(), it = start; it != end;)
+	{
+		if (!commands.contains(*it))
+			throw CLICommandParseError("unrecognized command: {}", *it);
+		TokenListConstIter op = std::find_if(it, end, is_operator);
+		if (op != end && *op == CMDPIPE)
+		{
+			it = ++op;
+			if (it == end)
+				cmds.emplace_back(start, --op);
+			continue;
+		}
+		cmds.emplace_back(start, op);
+		if (op == end)
+			break;
+
+		start = it = ++op;
+	}
+
+	// makesure `&&` or `||` or `|` is not at the end
+	if (cmds.back().end != end)
+		throw CLICommandParseError("unexpected operator \"{}\" at the end", *cmds.back().end);
+	return cmds;
+}
+
+int CLI::execute(const std::vector<CLI::PipelineRange>& cmd_list)
+{
+	std::vector<PipelineRange>::const_iterator ths = cmd_list.cbegin();
+	std::vector<PipelineRange>::const_iterator end = cmd_list.cend();
+	int ret_code = runPipeline(*ths);
+
+	for (auto lst = ths++; ths != end; ++ths)
+	{
+		const String& op_token = *lst->end;
+
+		if (op_token == detail::StringConstant_v<'&', '&'>)
+			ret_code = (ret_code == 0 && runPipeline(*ths) == 0);
+		else if (op_token == detail::StringConstant_v<'|', '|'>)
+			ret_code = (ret_code == 0 || runPipeline(*ths) == 0);
+		else
+			throw CLICommandParseError("unexpected operator \"{}\"", op_token);
+		lst = ths;
+	}
+
+	return ret_code;
+}
+
+int CLI::runPipeline(const CLI::PipelineRange& _pipe)
+{
+	ScopeGuard guard{[this]() { pipeline.close(); }};
+	/**
+	 * pipeline procedure should be something like this:
+	 * stdin > (pipe) > buffer1 > (pipe) > buffer2 > (pipe) > buffer1 > (pipe) > buffer2 > (pipe) > stdout
+	 *                        ^                  ^                  ^                  ^
+	 *    in            out  in            out  in            out  in            out  in            out
+	 * buffer1 and buffer2 are used in turns
+	**/
+	pipeline.open();
+	int ret_code = 0;
+	for (auto cmd_begin = _pipe.start; cmd_begin != _pipe.end;)
+	{
+		auto cmd_end = std::find(cmd_begin, _pipe.end, detail::StringConstant_v<'|'>);
+		if (cmd_end != _pipe.end)
+			pipeline.swapWorkingOutput();
+		else
+			pipeline.close();
+
+		const CLICommand* command = commands.at(*cmd_begin);
+		ret_code |= std::invoke(*command, *this, ArgList(cmd_begin, cmd_end));
+
+		pipeline.swapWorkingInput();
+
+		if (cmd_end == _pipe.end)
+			break;
+		cmd_begin = ++cmd_end;
+	}
+
+	return ret_code;
 }
 
 __CLIPP_end
