@@ -3,25 +3,34 @@
 
 #include "defines.hpp"
 #include <exception>
-#include <string>
+#include <fmt/format.h>
 
 __CLIPP_begin
 
-class CLIExcpetion : public std::exception
+class CLIException : public std::exception
 {
 public:
-	CLIExcpetion(const String& msg) noexcept
+	CLIException(const std::string& msg) noexcept
 		: msg(msg) {}
-	CLIExcpetion(const char* msg) noexcept
+	CLIException(const char* msg) noexcept
 		: msg(msg) {}
-	virtual ~CLIExcpetion() noexcept = default;
+	virtual ~CLIException() noexcept = default;
 
 	virtual const char* what() const noexcept { return msg.data(); }
 
 private:
-	String msg;
+	std::string msg;
 };
 
+class CLICommandParseError: public CLIException
+{
+public:
+	template<typename ...Args>
+	CLICommandParseError(fmt::format_string<Args...> fmt, Args&&... args) noexcept
+		: CLIException(fmt::format(fmt, std::forward<Args>(args)...)) {}
+	virtual ~CLICommandParseError() noexcept = default;
+
+};
 
 __CLIPP_end
 #endif //! __CLIPP_EXCEPTION_HEDER__
