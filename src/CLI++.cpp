@@ -449,9 +449,9 @@ int CLI::execute(const std::vector<CLI::PipelineRange>& cmd_list)
 		const String& op_token = *lst->end;
 
 		if (op_token == detail::StringConstant_v<'&', '&'>)
-			ret_code = (ret_code == 0 && runPipeline(*ths) == 0);
+			ret_code = !(ret_code == 0 && runPipeline(*ths) == 0); // reverse the result because `0` is what means OK
 		else if (op_token == detail::StringConstant_v<'|', '|'>)
-			ret_code = (ret_code == 0 || runPipeline(*ths) == 0);
+			ret_code = !(ret_code == 0 || runPipeline(*ths) == 0); // ditto
 		else
 			throw CLICommandParseError("unexpected operator \"{}\"", op_token);
 		lst = ths;
