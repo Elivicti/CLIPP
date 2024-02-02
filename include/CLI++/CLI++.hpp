@@ -231,7 +231,7 @@ public:
 			delete commands.at(name);
 		auto* command = new CLICommand(name, f, desc);
 		this->updateHelp(command);
-		commands.insert_or_assign(name, command);
+		commands.insert_or_assign(command->name(), command);
 	}
 	/**
 	 * @brief Insert a CLICommand or its derived class intance.
