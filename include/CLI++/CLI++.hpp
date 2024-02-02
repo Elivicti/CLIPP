@@ -227,24 +227,36 @@ public:
 	**/
 	void insertCommand(const String& name, CLICommand::CommandHandler f, const String& desc = String())
 	{
-		if (commands.contains(name))
-			delete commands.at(name);
-		auto* command = new CLICommand(name, f, desc);
+		CLICommand* command = new CLICommand(name, f, desc);
+		if (!commands.contains(name))
+			commands.insert(std::make_pair(command->name(), command));
+		else
+		{
+			CLICommand*& oldref = commands.at(name);
+			CLICommand*  old    = oldref;
+			oldref = command;
+			delete old;
+		}
 		this->updateHelp(command);
-		commands.insert_or_assign(command->name(), command);
 	}
 	/**
 	 * @brief Insert a CLICommand or its derived class intance.
-	 * @note  This method will take pointer's ownership, and delete it in deconstructor.
+	 * @note  This method will take pointer's ownership, and delete it in destructor.
 	 *        If a command with same name already exists, the old one will be deleted.
 	 * @param command pointer to a CLICommand or its derived class intance, must be created with new operator
 	**/
 	void insertCommand(CLICommand* command)
 	{
-		if (commands.contains(command->name()))
-			delete commands.at(command->name());
+		if (!commands.contains(command->name()))
+			commands.insert(std::make_pair(command->name(), command));
+		else
+		{
+			CLICommand*& oldref = commands.at(command->name());
+			CLICommand*  old    = oldref;
+			oldref = command;
+			delete old;
+		}
 		this->updateHelp(command);
-		commands.insert_or_assign(command->name(), command);
 	}
 
 	/**
