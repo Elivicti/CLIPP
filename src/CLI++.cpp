@@ -14,7 +14,7 @@ static auto CMDPIPE = detail::StringConstant_v<'|'>;
 ///////////////// Readline API /////////////////
 char* command_generator(const char* text, int state)
 {
-	static int len = 0;
+	static std::size_t len = 0;
 	static CLI::CLICommandMap::iterator begin, end;
 
 	// if this is a new word to complete, initialize now.
