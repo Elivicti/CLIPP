@@ -422,9 +422,9 @@ private:
 
 template <typename T>
 FMT_CONSTEXPR auto styled(const T& value, fmt::text_style ts)
-	-> detail::styled_arg<fmt::remove_cvref_t<T>>
+	-> detail::StyledArg<fmt::remove_cvref_t<T>>
 {
-	return detail::styled_arg<fmt::remove_cvref_t<T>>{value, ts};
+	return detail::StyledArg<fmt::remove_cvref_t<T>>{value, ts};
 }
 
 __CLIPP_end

@@ -11,11 +11,13 @@
 __CLIPP_begin namespace detail {
 
 template <typename T>
-struct styled_arg {
-	styled_arg(const fmt::detail::styled_arg<T>& styled)
+struct StyledArg {
+	StyledArg(const StyledArg<T>& styled)
+		: value(styled.value), style(styled.style) {}
+	StyledArg(const fmt::detail::styled_arg<T>& styled)
 		: value(styled.value), style(styled.style) {}
 
-	styled_arg(const T& value, fmt::text_style style)
+	StyledArg(const T& value, fmt::text_style style)
 		: value(value), style(style) {}
 
 	const T& value;
@@ -106,10 +108,10 @@ struct ScopeGuard
 __CLIPP_end
 
 template <typename T, typename Char>
-struct fmt::formatter<__CLIPP::detail::styled_arg<T>, Char> : fmt::formatter<T, Char>
+struct fmt::formatter<__CLIPP::detail::StyledArg<T>, Char> : fmt::formatter<T, Char>
 {
 	template <typename FormatContext>
-	auto format(const __CLIPP::detail::styled_arg<T>& arg, FormatContext& ctx) const
+	auto format(const __CLIPP::detail::StyledArg<T>& arg, FormatContext& ctx) const
 		-> decltype(ctx.out())
 	{
 		const auto& ts = arg.style;
