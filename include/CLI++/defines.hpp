@@ -16,12 +16,6 @@
 
 __CLIPP_begin
 
-// #ifndef WIN32
-// using String = std::string;
-// #else
-// using String = std::wstring;
-// #endif
-
 using String     = std::string;
 using CharType   = String::value_type;
 using StringView = std::basic_string_view<CharType>;
