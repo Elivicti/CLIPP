@@ -186,9 +186,9 @@ template<> std::basic_istream<char>&    get_stdin_stream()
 template<> std::basic_istream<wchar_t>& get_stdin_stream()
 { return std::wcin; }
 
-Pipeline::Pipeline(_std_iostream* buffer1, _std_iostream* buffer2)
-	: buffer1{ buffer1 == nullptr ? new _std_stringstream : buffer1, buffer1 != nullptr }
-	, buffer2{ buffer2 == nullptr ? new _std_stringstream : buffer2, buffer2 != nullptr }
+Pipeline::Pipeline(std_iostream* buffer1, std_iostream* buffer2)
+	: buffer1{ buffer1 == nullptr ? new std_stringstream : buffer1, buffer1 != nullptr }
+	, buffer2{ buffer2 == nullptr ? new std_stringstream : buffer2, buffer2 != nullptr }
 	, working{ nullptr, &get_stdin_stream<CharType>() }
 	, is_opened(false) {}
 
@@ -206,7 +206,7 @@ void Pipeline::clearAll()
 	buffer2.clear();
 }
 
-Pipeline::_std_ostream& Pipeline::write(const String& str)
+Pipeline::std_ostream& Pipeline::write(const String& str)
 {
 	if (working.out == nullptr)
 		throw CLIException("trying to write to a closed pipe");
@@ -263,20 +263,19 @@ void CLI::init(char completion_key)
 		throw CLIException("CLI can ONLY have one instance.");
 	cli_instance = this;
 
-
 	rl_bind_key(completion_key, rl_complete);
 	rl_attempted_completion_function = command_completion;
 
-	commands.emplace("help", new CLICommand("help", [](CLI& cli, const ArgList& args) {
+	commands.emplace("help", new CLICommandGeneric("help", [](CLI& cli, const ArgList& args) {
 		return cli.help(args);
 	}, "list all available commands or print help for specified command"));
-	commands.emplace("echo", new CLICommand("echo", [](CLI& cli, const ArgList& args) {
+	commands.emplace("echo", new CLICommandGeneric("echo", [](CLI& cli, const ArgList& args) {
 		return cli.echo(args);
 	}, "just an echo"));
-	commands.emplace("clear", new CLICommand("clear", [](CLI& cli, const ArgList&) {
+	commands.emplace("clear", new CLICommandGeneric("clear", [](CLI& cli, const ArgList&) {
 		return cli.clearScreen();
 	}, "clear screen"));
-	commands.emplace("exit", new CLICommand("exit", [](CLI& cli, const ArgList& args) {
+	commands.emplace("exit", new CLICommandGeneric("exit", [](CLI& cli, const ArgList& args) {
 		cli.exitImpl(args); return -1;
 	}, "exit cli with return code, if not specified, return 0"));
 
@@ -287,12 +286,12 @@ void CLI::init(char completion_key)
 }
 
 CLI::CLI(const String& prompt, char completion_key, TokenSpliterFunction spliter)
-	: in_exec_loop(false), prompt(prompt), last_return_code(0)
-	, token_spliter(spliter)
+	: last_return_code(0), pipeline()
+	, in_exec_loop(false), prompt(prompt), token_spliter(spliter)
 {
-	this->init();
+	this->init(completion_key);
 }
-// CLI::CLI(Pipeline::_std_iostream& stream, const String& prompt, char completion_key)
+// CLI::CLI(Pipeline::std_iostream& stream, const String& prompt, char completion_key)
 // 	: in_exec_loop(false), prompt(prompt), last_return_code(0), pipeline(stream)
 // { this->init(); }
 

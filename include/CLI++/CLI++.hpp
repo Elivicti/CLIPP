@@ -16,29 +16,16 @@ using TokenSpliterFunction = std::vector<String> (*)(const String&, detail::Stri
 
 class CLI;
 
+/** @brief Callable type for commands, must have `(CLI&, const ArgList&)` as argument types
+ *         and `int` as return type. */
+template<typename Func>
+concept CommandHandler = std::is_invocable_r_v<int, Func, CLI&, const ArgList&>;
+
 class CLICommand
 {
-protected:
-	struct OptionType
-	{
-		String name;
-		char short_name;
-		String desc;
-
-		// if either of the name or short name is same, options should be considered the same
-		bool operator==(const OptionType& opt) const
-		{
-			return name == opt.name
-				|| ((short_name == opt.short_name) && (short_name != 0));
-		}
-		bool operator<(const OptionType& opt) const
-		{ return name < opt.name; }
-	};
 public:
-	using CommandHandler = std::function<int(CLI&, const ArgList&)>;
-public:
-	CLICommand(const String& cmd, CommandHandler func, const String& desc = String())
-		: cmd(cmd), desc(desc), handler(func), options() {}
+	CLICommand(const String& cmd, const String& desc = String())
+		: cmd(cmd), desc(desc), options() {}
 	virtual ~CLICommand() = default;
 
 	const String& name() const { return cmd; }
@@ -102,18 +89,29 @@ public:
 	 * @param subcmd sub command name
 	**/
 	void removeSubCommand(const String& subcmd);
-
 protected:
 	int cursorPos() const { return pos; }
+	struct OptionType
+	{
+		String name;
+		char short_name;
+		String desc;
 
-private:
-	String cmd;
-	String desc;
-
-	CommandHandler handler;
+		// if either of the name or short name is same, options should be considered the same
+		bool operator==(const OptionType& opt) const
+		{
+			return name == opt.name
+				|| ((short_name == opt.short_name) && (short_name != 0));
+		}
+		bool operator<(const OptionType& opt) const
+		{ return name < opt.name; }
+	};
 
 	std::vector<OptionType> options;
 	std::vector<OptionType> subcmds;
+private:
+	String cmd;
+	String desc;
 
 	static int pos;	//used to determine whether to complete command or its arguments
 
@@ -122,22 +120,36 @@ public:
 	bool operator==(const CLICommand& other) const { return cmd == other.cmd; }
 	bool operator< (const CLICommand& other) const { return cmd <  other.cmd; }
 
-	virtual int operator()(CLI& cli, const ArgList& args) const { return handler(cli, args); }
+	virtual int operator()(CLI& cli, const ArgList& args) const = 0;
+};
+
+template<CommandHandler Func>
+class CLICommandGeneric : public CLICommand
+{
+public:
+	CLICommandGeneric(const String& cmd, Func&& f, const String& desc = String())
+		: CLICommand(cmd, desc), fn(f) {}
+	virtual ~CLICommandGeneric() = default;
+private:
+	Func fn;
+public:
+	virtual int operator()(CLI& cli, const ArgList& args) const override
+	{ return std::invoke(fn, cli, args); }
 };
 
 class Pipeline
 {
 public:
-	using _std_stringstream = std::basic_stringstream<CharType>;
-	using _std_iostream = std::basic_iostream<CharType>;
-	using _std_ostream = std::basic_ostream<CharType>;
-	using _std_istream = std::basic_istream<CharType>;
+	using std_stringstream = std::basic_stringstream<CharType>;
+	using std_iostream = std::basic_iostream<CharType>;
+	using std_ostream = std::basic_ostream<CharType>;
+	using std_istream = std::basic_istream<CharType>;
 public:
 	/**
 	 * @brief Create a `Pipeline` object, uses specified stream objects as buffer.
 	 * @note  The caller need to ensure the life time of these two stream objects.
 	**/
-	Pipeline(_std_iostream* buffer1, _std_iostream* buffer2);
+	Pipeline(std_iostream* buffer1, std_iostream* buffer2);
 	/** @brief Create a `Pipeline` object, uses `std::stringstream` objects as buffer. */
 	Pipeline() : Pipeline(nullptr, nullptr) {};
 	virtual ~Pipeline();
@@ -171,12 +183,12 @@ public:
 protected:
 	struct StreamBuffer
 	{
-		_std_iostream* stream;
+		std_iostream* stream;
 		const bool is_external;
 
 		void clear()
 		{
-			if (auto ss = dynamic_cast<_std_stringstream*>(stream))
+			if (auto ss = dynamic_cast<std_stringstream*>(stream))
 				ss->str(detail::StringConstant_v<>);
 			stream->clear();
 		}
@@ -188,23 +200,23 @@ private:
 	StreamBuffer buffer2;
 
 	struct {
-		_std_ostream* out;
-		_std_istream* in;
+		std_ostream* out;
+		std_istream* in;
 	} working;
 
 	bool is_opened;
 public:
 	template<typename T>
-	_std_istream& operator>>(T& value) { return (*working.in) >> value; }
-	_std_istream& getline(String& str) { return std::getline(*working.in, str); }
-	_std_istream& get() { return *working.in; }
+	std_istream& operator>>(T& value) { return (*working.in) >> value; }
+	std_istream& getline(String& str) { return std::getline(*working.in, str); }
+	std_istream& get() { return *working.in; }
 
 	/**
 	 * @brief  Write string to working output stream, if pipeline is closed, throw an exception.
 	 * @throws `CLIException` trying to write to a closed pipe
 	 * @return Reference to the currently working output stream.
 	**/
-	_std_ostream& write(const String& str);
+	std_ostream& write(const String& str);
 };
 
 class CLI
@@ -221,23 +233,16 @@ public:
 	/**
 	 * @brief Create a command with specific name, description and action.
 	 * @note  If a command with same name already exists, the old one will be deleted.
+	 * @tparam Func Func(CLI&, const ArgList&) -> int
 	 * @param name command name
 	 * @param f function to be called
 	 * @param desc description for this command
 	**/
-	void insertCommand(const String& name, CLICommand::CommandHandler f, const String& desc = String())
+	template<CommandHandler Func>
+	void insertCommand(const String& name, Func&& f, const String& desc = String())
 	{
-		CLICommand* command = new CLICommand(name, f, desc);
-		if (!commands.contains(name))
-			commands.insert(std::make_pair(command->name(), command));
-		else
-		{
-			CLICommand*& oldref = commands.at(name);
-			CLICommand*  old    = oldref;
-			oldref = command;
-			delete old;
-		}
-		this->updateHelp(command);
+		CLICommand* command = new CLICommandGeneric(name, std::forward<Func>(f), desc);
+		this->insertCommand(command);
 	}
 	/**
 	 * @brief Insert a CLICommand or its derived class intance.
@@ -247,15 +252,9 @@ public:
 	**/
 	void insertCommand(CLICommand* command)
 	{
-		if (!commands.contains(command->name()))
-			commands.insert(std::make_pair(command->name(), command));
-		else
-		{
-			CLICommand*& oldref = commands.at(command->name());
-			CLICommand*  old    = oldref;
-			oldref = command;
+		if (CLICommand* old = this->take(command->name()))
 			delete old;
-		}
+		commands.emplace(command->name(), command);
 		this->updateHelp(command);
 	}
 
@@ -318,7 +317,7 @@ public: // pipeline supported i/o
 	 *        contents are get from the pipeline.
 	 * @note  This method basically does the same thing as std::cin or std::wcin, but supports pipeline.
 	**/
-	Pipeline::_std_istream& get()
+	Pipeline::std_istream& get()
 	{
 		return pipeline.get();
 	}
@@ -329,7 +328,7 @@ public: // pipeline supported i/o
 	 * @param args variables to store data
 	**/
 	template<typename ...Args>
-	Pipeline::_std_istream& get(Args& ... args)
+	Pipeline::std_istream& get(Args& ... args)
 	{
 		return (pipeline >> ... >> args);
 		// return pipeline.get(std::forward<Args...>(args...));
@@ -340,7 +339,7 @@ public: // pipeline supported i/o
 	 * @note  This method basically does the same thing as std::getline(), but supports pipeline.
 	 * @param line string to store the data of the line
 	**/
-	Pipeline::_std_istream& getline(String& line)
+	Pipeline::std_istream& getline(String& line)
 	{
 		return pipeline.getline(line);
 	}
@@ -397,9 +396,7 @@ protected:
 	virtual int runPipeline(const PipelineRange& _pipe);
 
 	int last_return_code;
-private:
-	void exitImpl(const ArgList& args) const;
-	void updateHelp(const CLICommand* cmd);
+	mutable Pipeline pipeline;
 private:
 	using CLICommandMap = std::map<StringView, CLICommand*>;
 
@@ -410,12 +407,12 @@ private:
 	friend char** command_completion(const char* text, int start, int end);
 
 	void init(char completion_key = '\t');
+	void exitImpl(const ArgList& args) const;
+	void updateHelp(const CLICommand* cmd);
 private:
 	bool in_exec_loop;
 	String prompt;
 	CLICommandMap commands;
-
-	mutable Pipeline pipeline;
 
 	TokenSpliterFunction token_spliter;
 };
