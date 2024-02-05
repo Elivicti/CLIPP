@@ -1,5 +1,5 @@
-#ifndef __CLIPP_STRINGHELPER_HEADER__
-#define __CLIPP_STRINGHELPER_HEADER__
+#ifndef __CLIPP_DETAIL_HEADER__
+#define __CLIPP_DETAIL_HEADER__
 
 #include "defines.hpp"
 
@@ -7,6 +7,10 @@
 #include <cstdint>
 #include <vector>
 #include <algorithm>
+
+#ifdef __GNUC__
+#  include <cxxabi.h>
+#endif
 
 __CLIPP_begin namespace detail {
 
@@ -30,7 +34,7 @@ enum class String2ArgvErr {
 };
 
 template<CharType... Chars>
-struct StringConstant
+struct StringConstantType
 {
 	constexpr static CharType value[sizeof...(Chars) + 1] = { Chars..., '\0' };
 	constexpr static String toString()
@@ -39,7 +43,25 @@ struct StringConstant
 	}
 };
 template<CharType ... Chars>
-inline constexpr auto StringConstant_v = StringConstant<Chars...>::value;
+inline constexpr auto StringConstant = StringConstantType<Chars...>::value;
+
+template<typename CharT>
+inline const CharT* convert_str(const char* str, std::size_t len);
+
+template<>
+inline const char* convert_str<char>(const char* str, std::size_t len) { return str; }
+
+template<>
+inline const wchar_t* convert_str<wchar_t>(const char* str, std::size_t len)
+{
+	wchar_t* wcs = new wchar_t[len + 1];
+#ifdef _MSC_VER // "nice" work, microsoft
+	mbstowcs_s(nullptr, wcs, len + 1, str, len + 1);
+#else
+	std::mbstowcs(wcs, str, len + 1);
+#endif // _MSC_VER
+	return wcs;
+}
 
 /**
  * @brief Split string into bash-like tokens.
@@ -82,7 +104,7 @@ CharT* strdup(const CharT* str)
 {
 	std::size_t size = sizeof(CharT) * (strlen(str) + 1);
 	CharT* ret = (CharT*)std::malloc(size);
-#ifdef _MSC_VER	// "nice" work, microsoft
+#ifdef _MSC_VER // "nice" work, microsoft
 	if (ret != nullptr)
 		memcpy_s(ret, size, str, size);
 #else
@@ -92,6 +114,22 @@ CharT* strdup(const CharT* str)
 	return ret;
 }
 
+/**
+ * @brief  Get name from a type.
+ * @return Name of the type, is demangled if compile under gcc or clang.
+**/
+template<typename T>
+String type_name()
+{
+#ifdef __GNUC__	// gcc and clang requires demangle
+	char* p = abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, nullptr);
+	String ret(p);
+	free(p);
+	return ret;
+#else
+	return typeid(T).name();
+#endif
+}
 
 }	// namespace detail
 
@@ -104,6 +142,19 @@ struct ScopeGuard
 		: _f(fn), _args(std::forward<Args>(args)...) {}
 	~ScopeGuard() noexcept { std::apply(_f, _args); }
 };
+
+namespace literals {
+
+inline String operator""_S(const char* text, std::size_t len)
+{
+	auto p = detail::convert_str<CharType>(text, len);
+	String ret{ p, len };
+	if constexpr (std::is_same_v<CharType, wchar_t>)
+		delete p;
+	return ret;
+}
+
+}	// namespace literals
 
 __CLIPP_end
 
@@ -152,4 +203,4 @@ struct fmt::formatter<__CLIPP::detail::StyledArg<T>, Char> : fmt::formatter<T, C
 	}
 };
 
-#endif //! __CLIPP_STRINGHELPER_HEADER__
+#endif //! __CLIPP_DETAIL_HEADER__
