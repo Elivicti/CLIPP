@@ -7,9 +7,9 @@
 
 __CLIPP_begin
 /////////////////   Constant   /////////////////
-static auto CMDAND  = detail::StringConstant_v<'&', '&'>;
-static auto CMDOR   = detail::StringConstant_v<'|', '|'>;
-static auto CMDPIPE = detail::StringConstant_v<'|'>;
+static auto CMDAND  = detail::StringConstant<'&', '&'>;
+static auto CMDOR   = detail::StringConstant<'|', '|'>;
+static auto CMDPIPE = detail::StringConstant<'|'>;
 
 ///////////////// Readline API /////////////////
 char* command_generator(const char* text, int state)
@@ -447,9 +447,9 @@ int CLI::execute(const std::vector<CLI::PipelineRange>& cmd_list)
 	{
 		const String& op_token = *lst->end;
 
-		if (op_token == detail::StringConstant_v<'&', '&'>)
+		if (op_token == CMDAND)
 			ret_code = !(ret_code == 0 && runPipeline(*ths) == 0); // reverse the result because `0` is what means OK
-		else if (op_token == detail::StringConstant_v<'|', '|'>)
+		else if (op_token == CMDOR)
 			ret_code = !(ret_code == 0 || runPipeline(*ths) == 0); // ditto
 		else
 			throw CLICommandParseError("unexpected operator \"{}\"", op_token);
@@ -473,7 +473,7 @@ int CLI::runPipeline(const CLI::PipelineRange& _pipe)
 	int ret_code = 0;
 	for (auto cmd_begin = _pipe.start; cmd_begin != _pipe.end;)
 	{
-		auto cmd_end = std::find(cmd_begin, _pipe.end, detail::StringConstant_v<'|'>);
+		auto cmd_end = std::find(cmd_begin, _pipe.end, CMDPIPE);
 		if (cmd_end != _pipe.end)
 			pipeline.swapWorkingOutput();
 		else

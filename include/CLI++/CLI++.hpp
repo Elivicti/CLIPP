@@ -189,7 +189,7 @@ protected:
 		void clear()
 		{
 			if (auto ss = dynamic_cast<std_stringstream*>(stream))
-				ss->str(detail::StringConstant_v<>);
+				ss->str(detail::StringConstant<>);
 			stream->clear();
 		}
 		void flush() { stream->flush(); }
