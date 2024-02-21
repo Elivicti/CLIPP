@@ -12,7 +12,7 @@
 __CLIPP_begin
 
 using ArgList = std::vector<StringView>;
-using TokenSpliterFunction = std::vector<String> (*)(const String&, detail::String2ArgvErr*);
+using TokenSpliterFunction = std::vector<String> (*)(StringView, detail::CliSyntaxError*);
 
 class CLI;
 

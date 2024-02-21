@@ -19,9 +19,9 @@ __CLIPP_begin namespace detail {
 #define STR_TERMINATE '\0'
 #endif
 template<typename CharT>
-CharT handle_escape(CharT** src_p)
+CharT handle_escape(const CharT*& src_p)
 {
-	CharT ch = *((*src_p)++);
+	CharT ch = *(src_p++);
 	// Escape character is always eaten. The next character is sometimes treated specially.
 	switch (ch) {
 	case 'a': ch = '\a'; break;
@@ -35,27 +35,27 @@ CharT handle_escape(CharT** src_p)
 	return ch;
 }
 template<typename CharT>
-String2ArgvErr copy_raw_string(CharT** dest_p, CharT** src_p)
+CliSyntaxError copy_raw_string(CharT*& dest_p, const CharT*& src_p)
 {
 	while(true) {
-		CharT ch = *((*src_p)++);
+		CharT ch = *(src_p++);
 
 		switch (ch) {
-		case STR_TERMINATE: return String2ArgvErr::UNBALANCED_QUOTE;
+		case STR_TERMINATE: return {CliSyntaxError::UNBALANCED_QUOTE, '\''};
 		case '\'':
-			*(*dest_p) = STR_TERMINATE;
-			return String2ArgvErr::OK;
+			*dest_p = STR_TERMINATE;
+			return CliSyntaxError::OK;
 
 		case '\\':
-			ch = *((*src_p)++);
+			ch = *(src_p++);
 			switch (ch)
 			{
 			case STR_TERMINATE:
-				return String2ArgvErr::UNBALANCED_QUOTE;
+				return {CliSyntaxError::UNBALANCED_QUOTE, '\''};
 
 			default:
 				// unknown/invalid escape. Copy escape character.
-				*((*dest_p)++) = '\\';
+				*(dest_p++) = '\\';
 				break;
 
 			case '\\':
@@ -64,97 +64,104 @@ String2ArgvErr copy_raw_string(CharT** dest_p, CharT** src_p)
 			}
 
 		default:
-			*((*dest_p)++) = ch;
+			*(dest_p++) = ch;
 			break;
 		}
 	}
 }
 template<typename CharT>
-String2ArgvErr copy_cooked_string(CharT** dest_p, CharT** src_p)
+CliSyntaxError copy_cooked_string(CharT*& dest_p, const CharT*& src_p)
 {
 	while(true) {
-		CharT ch = *((*src_p)++);
+		CharT ch = *(src_p++);
 		switch (ch) {
 		case STR_TERMINATE:
-			return String2ArgvErr::UNBALANCED_QUOTE;
+			return {CliSyntaxError::UNBALANCED_QUOTE, '"'};
 		case '"':
-			*(*dest_p) = STR_TERMINATE;
-			return String2ArgvErr::OK;
+			*dest_p = STR_TERMINATE;
+			return CliSyntaxError::OK;
 
 		case '\\':
 			ch = handle_escape(src_p);
 			if (ch == STR_TERMINATE)
-				return String2ArgvErr::UNBALANCED_QUOTE;
+				return {CliSyntaxError::UNBALANCED_QUOTE, '"'};
 
 		default:
-			*((*dest_p)++) = ch;
+			*(dest_p++) = ch;
 			break;
 		}
 	}
 }
-
-
-std::vector<String> split_token(const String& str, String2ArgvErr* err_p)
+template<typename CharT>
+void handle_operator(CharT*& dest, const CharT*& src)
 {
-	String2ArgvErr err = String2ArgvErr::OK;
-	using Char = String::value_type;
+	CharT ch = *src;
+	switch (ch)
+	{
+	case '&':
+	case '|':
+		*(dest++) = ch;
+		src++;
+		break;
+	default:
+		break;
+	}
+}
 
+std::vector<String> split_token(StringView str, CliSyntaxError* _err)
+{
+	using Char = String::value_type;
 	std::vector<String> ret;
 	ret.reserve(10);
 
-	std::unique_ptr<Char, void (*)(void*)> pstr(strdup(str.data()), std::free);
-	Char* scan = pstr.get();
+	CliSyntaxError err = CliSyntaxError::OK;
 
-	while (std::isspace((unsigned char)*scan)) scan++;
-	Char* dest  = scan;
-	Char* token = scan;
+	std::unique_ptr<Char, void (*)(void*)> buffer(strdup(str.data()), std::free);
+	const Char* scan = str.data();
+	Char* dest = buffer.get();
+	Char* token = dest;
 
-	// constexpr Char round_bracket_beg[2] = { '(', '\0' };
-	// constexpr Char round_bracket_end[2] = { ')', '\0' };
-
-	bool done = false;
-	while(!done && (err == String2ArgvErr::OK))
+	while (*scan != STR_TERMINATE && (err == CliSyntaxError::OK))
 	{
-		while (std::isspace((unsigned char)*scan)) scan++;
-		if (*scan == STR_TERMINATE)
-			break;
-
-		token = dest = scan;
+		while (std::isspace(*scan)) scan++;
+		if (*scan == STR_TERMINATE) break;
+		dest = token;
 
 		bool token_done = false;
-		// int round_bracket = 0;
-		while(!token_done && (err == String2ArgvErr::OK))
+		while (!token_done && (err == CliSyntaxError::OK))
 		{
 			Char ch = *(scan++);
 			switch (ch)
 			{
 			case STR_TERMINATE:
-				done = true;
+				scan--;
 				token_done = true;
 				break;
-
-			case '\\':
-				if ((*(dest++) = *(scan++)) == STR_TERMINATE)
-				{
-					done = true;
-					token_done = true;
-				}
-				break;
+			// case '\\':
+			// 	if (*scan == STR_TERMINATE)	// ignore last invalid escape
+			// 		token_done = true;
+			// 	break;
 
 			case '\'':
-				err = copy_raw_string(&dest, &scan);
+				err = copy_raw_string(dest, scan);
 				break;
 
 			case '"':
-				err = copy_cooked_string(&dest, &scan);
+				err = copy_cooked_string(dest, scan);
 				break;
 
-			case ')':
-				// round_bracket++;
-				// continue;
+			case '&':
+			case '|':
+			// case '(':
+			// case ')':
+				if (token != dest)
+					ret.emplace_back(token, dest);
+				*(dest = token) = ch;
+				handle_operator(++dest, scan);
+
 			case '(':
-				// ret.emplace_back(round_bracket_beg);
-				// fallthrough
+			case ')':
+				// don't handle '(' and ')' currently, treat them as token end
 			case ' ':
 			case '\t':
 			case '\n':
@@ -168,16 +175,13 @@ std::vector<String> split_token(const String& str, String2ArgvErr* err_p)
 				*(dest++) = ch;
 			}
 		}
-		*dest = STR_TERMINATE;
-		if (*token != STR_TERMINATE)
-			ret.emplace_back(token);
-		// while (round_bracket--)
-		// 	ret.emplace_back(round_bracket_end);
+		if (token != dest)
+			ret.emplace_back(token, dest);
 	}
 
-	if (err_p != nullptr)
-		*err_p = err;
+	if (_err != nullptr) *_err = err;
 
+	ret.shrink_to_fit();
 	return ret;
 }
 //////////// String To Argv ////////////
