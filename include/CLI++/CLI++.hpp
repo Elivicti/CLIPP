@@ -9,7 +9,7 @@
 #include <fmt/color.h>
 #include <sstream>
 
-__CLIPP_begin
+CLIPP_BEGIN
 
 using ArgList = std::vector<StringView>;
 using TokenSpliterFunction = std::vector<String> (*)(StringView, detail::ArgvError*);
@@ -424,5 +424,5 @@ FMT_CONSTEXPR auto styled(const T& value, fmt::text_style ts)
 	return detail::StyledArg<fmt::remove_cvref_t<T>>{value, ts};
 }
 
-__CLIPP_end
+CLIPP_END
 #endif //! __CLIPP_INTERACTIVE_HEADER__

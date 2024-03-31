@@ -5,7 +5,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
-__CLIPP_begin
+CLIPP_BEGIN
 /////////////////   Constant   /////////////////
 static auto CMDAND  = detail::StringConstant<'&', '&'>;
 static auto CMDOR   = detail::StringConstant<'|', '|'>;
@@ -492,4 +492,4 @@ int CLI::runPipeline(const CLI::PipelineRange& _pipe)
 	return ret_code;
 }
 
-__CLIPP_end
+CLIPP_END

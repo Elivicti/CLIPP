@@ -5,7 +5,7 @@
 #include <regex>
 #endif
 
-__CLIPP_begin namespace detail {
+CLIPP_BEGIN namespace detail {
 
 //////////// String To Argv ////////////
 /**
@@ -217,4 +217,4 @@ std::vector<String> string_to_argv(const String& cmd)
 }
 #endif //! __REGEX_SPLIT
 
-} __CLIPP_end
+} CLIPP_END

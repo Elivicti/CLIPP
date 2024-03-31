@@ -12,7 +12,7 @@
 #  include <cxxabi.h>
 #endif
 
-__CLIPP_begin namespace detail {
+CLIPP_BEGIN namespace detail {
 
 template <typename T>
 struct StyledArg {
@@ -168,13 +168,13 @@ inline String operator""_S(const char* text, std::size_t len)
 
 }	// namespace literals
 
-__CLIPP_end
+CLIPP_END
 
 template <typename T, typename Char>
-struct fmt::formatter<__CLIPP::detail::StyledArg<T>, Char> : fmt::formatter<T, Char>
+struct fmt::formatter<NS_CLIPP::detail::StyledArg<T>, Char> : fmt::formatter<T, Char>
 {
 	template <typename FormatContext>
-	auto format(const __CLIPP::detail::StyledArg<T>& arg, FormatContext& ctx) const
+	auto format(const NS_CLIPP::detail::StyledArg<T>& arg, FormatContext& ctx) const
 		-> decltype(ctx.out())
 	{
 		const auto& ts = arg.style;

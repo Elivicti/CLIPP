@@ -1,11 +1,14 @@
 #ifndef __CLIPP_DEFINES_HEADER__
 #define __CLIPP_DEFINES_HEADER__
 
-#define __namespace_CLIPP CLIPP
-#define __CLIPP __namespace_CLIPP
+#define NAMESPACE_CLIPP__ CLIPP
+#define NS_CLIPP NAMESPACE_CLIPP__
 
-#define __CLIPP_begin namespace __namespace_CLIPP {
-#define __CLIPP_end }
+#define NAMESPACE_BEGIN(name) namespace name {
+#define NAMESPACE_END(name)   }
+
+#define CLIPP_BEGIN NAMESPACE_BEGIN(NS_CLIPP)
+#define CLIPP_END   NAMESPACE_END(NS_CLIPP)
 
 #define SET_CLIPP_ALIAS(alias) namespace alias = __namespace_CLIPP
 
@@ -14,12 +17,12 @@
 
 #include <string>
 
-__CLIPP_begin
+CLIPP_BEGIN
 
 using String     = std::string;
 using CharType   = String::value_type;
 using StringView = std::basic_string_view<CharType>;
 
-__CLIPP_end
+CLIPP_END
 
 #endif //! __CLIPP_DEFINES_HEADER__
