@@ -28,7 +28,7 @@ struct StyledArg {
 	fmt::text_style style;
 };
 
-struct CliSyntaxError
+struct ArgvError
 {
 	enum Type
 	{
@@ -36,8 +36,8 @@ struct CliSyntaxError
 		UNBALANCED_QUOTE
 	};
 
-	CliSyntaxError() : type{OK}, quote{0} {}
-	CliSyntaxError(Type t, CharType quote = 0) : type{t}, quote{quote} {}
+	ArgvError() : type{OK}, quote{0} {}
+	ArgvError(Type t, CharType quote = 0) : type{t}, quote{quote} {}
 
 	Type type;
 	CharType quote;
@@ -80,7 +80,7 @@ inline const wchar_t* convert_str<wchar_t>(const char* str, std::size_t len)
  * @note  Special operators like `|`, `||` and `&&` won't be recognize if no white spaces are around them,
  *        e.g. "echo 1||echo 2" will be split into {"echo", "1||echo", "2"}
 **/
-std::vector<String> split_token(StringView cmd, CliSyntaxError* err = nullptr);
+std::vector<String> split_token(StringView cmd, ArgvError* err = nullptr);
 
 /** @brief Check if a string is empty, or its characters are all white spaces (i.e. character that `std::isspace` returns true). */
 template<typename CharT>

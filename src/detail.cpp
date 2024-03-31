@@ -35,23 +35,23 @@ CharT handle_escape(const CharT*& src_p)
 	return ch;
 }
 template<typename CharT>
-CliSyntaxError copy_raw_string(CharT*& dest_p, const CharT*& src_p)
+ArgvError copy_raw_string(CharT*& dest_p, const CharT*& src_p)
 {
 	while(true) {
 		CharT ch = *(src_p++);
 
 		switch (ch) {
-		case STR_TERMINATE: return {CliSyntaxError::UNBALANCED_QUOTE, '\''};
+		case STR_TERMINATE: return {ArgvError::UNBALANCED_QUOTE, '\''};
 		case '\'':
 			*dest_p = STR_TERMINATE;
-			return CliSyntaxError::OK;
+			return ArgvError::OK;
 
 		case '\\':
 			ch = *(src_p++);
 			switch (ch)
 			{
 			case STR_TERMINATE:
-				return {CliSyntaxError::UNBALANCED_QUOTE, '\''};
+				return {ArgvError::UNBALANCED_QUOTE, '\''};
 
 			default:
 				// unknown/invalid escape. Copy escape character.
@@ -70,21 +70,21 @@ CliSyntaxError copy_raw_string(CharT*& dest_p, const CharT*& src_p)
 	}
 }
 template<typename CharT>
-CliSyntaxError copy_cooked_string(CharT*& dest_p, const CharT*& src_p)
+ArgvError copy_cooked_string(CharT*& dest_p, const CharT*& src_p)
 {
 	while(true) {
 		CharT ch = *(src_p++);
 		switch (ch) {
 		case STR_TERMINATE:
-			return {CliSyntaxError::UNBALANCED_QUOTE, '"'};
+			return {ArgvError::UNBALANCED_QUOTE, '"'};
 		case '"':
 			*dest_p = STR_TERMINATE;
-			return CliSyntaxError::OK;
+			return ArgvError::OK;
 
 		case '\\':
 			ch = handle_escape(src_p);
 			if (ch == STR_TERMINATE)
-				return {CliSyntaxError::UNBALANCED_QUOTE, '"'};
+				return {ArgvError::UNBALANCED_QUOTE, '"'};
 
 		default:
 			*(dest_p++) = ch;
@@ -108,27 +108,27 @@ void handle_operator(CharT*& dest, const CharT*& src)
 	}
 }
 
-std::vector<String> split_token(StringView str, CliSyntaxError* _err)
+std::vector<String> split_token(StringView str, ArgvError* _err)
 {
 	using Char = String::value_type;
 	std::vector<String> ret;
 	ret.reserve(10);
 
-	CliSyntaxError err = CliSyntaxError::OK;
+	ArgvError err = ArgvError::OK;
 
 	std::unique_ptr<Char, void (*)(void*)> buffer(strdup(str.data()), std::free);
 	const Char* scan = str.data();
 	Char* dest = buffer.get();
 	Char* token = dest;
 
-	while (*scan != STR_TERMINATE && (err == CliSyntaxError::OK))
+	while (*scan != STR_TERMINATE && (err == ArgvError::OK))
 	{
 		while (std::isspace(*scan)) scan++;
 		if (*scan == STR_TERMINATE) break;
 		dest = token;
 
 		bool token_done = false;
-		while (!token_done && (err == CliSyntaxError::OK))
+		while (!token_done && (err == ArgvError::OK))
 		{
 			Char ch = *(scan++);
 			switch (ch)
@@ -137,10 +137,12 @@ std::vector<String> split_token(StringView str, CliSyntaxError* _err)
 				scan--;
 				token_done = true;
 				break;
-			// case '\\':
+			case '\\':
+				ch = handle_escape(scan);
+				*(dest++) = ch;
 			// 	if (*scan == STR_TERMINATE)	// ignore last invalid escape
 			// 		token_done = true;
-			// 	break;
+				break;
 
 			case '\'':
 				err = copy_raw_string(dest, scan);
