@@ -8,9 +8,6 @@
 #include <vector>
 #include <algorithm>
 
-#ifdef __GNUC__
-#  include <cxxabi.h>
-#endif
 
 CLIPP_BEGIN namespace detail {
 
@@ -126,22 +123,7 @@ CharT* strdup(const CharT* str)
 	return ret;
 }
 
-/**
- * @brief  Get name from a type.
- * @return Name of the type, is demangled if compile under gcc or clang.
-**/
-template<typename T>
-String type_name()
-{
-#ifdef __GNUC__	// gcc and clang requires demangle
-	char* p = abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, nullptr);
-	String ret(p);
-	free(p);
-	return ret;
-#else
-	return typeid(T).name();
-#endif
-}
+
 
 }	// namespace detail
 
