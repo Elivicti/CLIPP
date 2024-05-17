@@ -5,7 +5,7 @@
 #include <exception>
 #include <fmt/format.h>
 
-__CLIPP_begin
+CLIPP_BEGIN
 
 class CLIException : public std::exception
 {
@@ -22,7 +22,7 @@ private:
 	std::string msg;
 };
 
-class CLICommandParseError: public CLIException
+class CLICommandParseError : public CLIException
 {
 public:
 	template<typename ...Args>
@@ -32,5 +32,17 @@ public:
 
 };
 
-__CLIPP_end
+template<typename Target, typename Source>
+class BadLexicalCast : public std::bad_cast
+{
+public:
+	BadLexicalCast() noexcept {}
+	virtual ~BadLexicalCast() noexcept = default;
+
+	virtual const char* what() const noexcept { return msg.data(); }
+private:
+	std::string msg;
+};
+
+CLIPP_END
 #endif //! __CLIPP_EXCEPTION_HEDER__
